@@ -3,33 +3,41 @@ var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
-
+const mongoose = require("mongoose");
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
-var addmodsRouter = require('./routes/addmods');
-var animalRouter = require('./routes/animal');
-var selectorRouter = require('./routes/selector');
-var Costume = require('./models/costume');
-var resource = require('./routes/resource');
-var marvel = require('./routes/marvel');
+const carRouter = require('./routes/animal')
+const resoureRouter = require('./routes/resource')
+const addModRouter = require('./routes/addmods');
+const selectorRouter = require('./routes/selector');
+const Costume = require("./models/costume");
+const marvelRouter = require("./routes/marvel");
+var passport = require('passport'); 
+var LocalStrategy = require('passport-local').Strategy; 
 var app = express();
+passport.use(new LocalStrategy( 
+  function(username, password, done) { 
+    Account.findOne({ username: username }, function (err, user) { 
+      if (err) { return done(err); } 
+      if (!user) { 
+        return done(null, false, { message: 'Incorrect username.' }); 
+      } 
+      if (!user.validPassword(password)) { 
+        return done(null, false, { message: 'Incorrect password.' }); 
+      } 
+      return done(null, user); 
+    }); 
+  }))
+const connectionString =  process.env.MONGO_CON;
+console.log(connectionString)
+mongoose.connect(connectionString,{useNewUrlParser: true, useUnifiedTopology: true}); 
 
-const connectionString =
-process.env.MONGO_CON
-mongoose = require('mongoose');
-mongoose.connect(connectionString,
-{useNewUrlParser: true,
-useUnifiedTopology: true});
-
-
-//Get the default connection
-var db = mongoose.connection;
-//Bind connection to error event
-db.on('error', console.error.bind(console, 'MongoDB connectionerror:'));
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'MongoDB connection error:')); 
 db.once("open", function(){
-console.log("Connection to DB succeeded")});
-recreateDB();
-
+   console.log("Connection to DB succeeded");
+    recreateDB();
+}); 
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -39,18 +47,33 @@ app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+app.use(require('express-session')({ 
+  secret: 'keyboard cat', 
+  resave: false, 
+  saveUninitialized: false 
+})); 
+app.use(passport.initialize()); 
+app.use(passport.session()); 
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
+app.use('/resource', resoureRouter);
+app.use('/marvel', marvelRouter);
 app.use('/users', usersRouter);
-app.use('/addmods', addmodsRouter);
-app.use('/animal', animalRouter);
+app.use('/car', carRouter);
+app.use('/addmods', addModRouter);
 app.use('/selector', selectorRouter);
-app.use('/resource', resource)
-app.use('/marvel',marvel)
-
-
 // catch 404 and forward to error handler
+
+// passport config 
+// Use the existing connection 
+// The Account model  
+var Account =require('./models/account'); 
+ 
+passport.use(new LocalStrategy(Account.authenticate())); 
+passport.serializeUser(Account.serializeUser()); 
+passport.deserializeUser(Account.deserializeUser()); 
+ 
 app.use(function(req, res, next) {
   next(createError(404));
 });
@@ -66,24 +89,30 @@ app.use(function(err, req, res, next) {
   res.render('error');
 });
 
-module.exports = app;
-async function recreateDB(){
-  // Delete everything
-  await Costume.deleteMany();
-  let instance1 = new  Costume({costume_type:"ghost", size:'small',cost:26.4});
-  let instance2 = new  Costume({costume_type:"spider", size:'large',cost:67.4});
-  let instance3 = new Costume({costume_type:"badman", size:'medium',cost:66.4});
-  instance1.save( function(err,doc) {
-  if(err) return console.error(err);
-  console.log("First object saved")
-  });
-  instance2.save( function(err,doc) {
-  if(err) return console.error(err);
-  console.log("second object saved")
-  });
-  instance3.save( function(err,doc) {
-  if(err) return console.error(err);
-  console.log("third object saved")
-    });
- }
+
+async function recreateDB(){ 
+  // Delete everything 
+  await Costume.deleteMany(); 
  
+  let instance1 = new Costume({costume_type:"Spider",  size:'large', cost:67.4}); 
+  let instance2 = new Costume({costume_type:"ghost",  size:'Medium', cost:26.4}); 
+  let instance3 = new Costume({costume_type:"Batman",  size:'small', cost:66.4}); 
+
+  instance1.save( function(err,doc) { 
+      if(err) return console.error(err); 
+      console.log("First object saved") 
+  });
+  instance2.save( function(err,doc) { 
+    if(err) return console.error(err); 
+    console.log("second object saved") 
+  });
+  instance3.save( function(err,doc) { 
+    if(err) return console.error(err); 
+    console.log("third object saved") 
+  });
+  
+} 
+ 
+
+
+module.exports = app;
